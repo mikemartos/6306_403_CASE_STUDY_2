@@ -1,0 +1,488 @@
+---
+title: "Case Study 2 6306_403"
+author: "Mike Martos"
+date: "July 17, 2016"
+output: 
+  pdf_document :
+  html_document :
+    keep_md : TRUE;
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(Rcpp)
+# load 'fpp' package in order to obtain the forecasting functions
+
+library(fpp)
+#load 'tcltk' for pause function
+library(tseries)
+library(tcltk)
+library(forecast)
+library(foreach)
+```
+
+```{r import data}
+#Import data
+ImportedAsIsData <- read.csv("./Data/Raw/ImportedAsIsDataChulwalar.csv", header = F, sep=";", fill = T) 
+ImportedPlanData <- read.csv("./Data/Raw/ImportedPlanDataChulwalar.csv", header = F, sep=";", fill = T) 
+ImportedIndicators <- read.csv("./Data/Raw/ImportedIndicatorsChulwalar.csv", header = F, sep=";", fill = T) 
+```
+
+```{r prepdata, echo=FALSE}
+#prepare data
+TotalAsIsVector <- c(ImportedAsIsData [2:13,2],ImportedAsIsData [2:13,3],ImportedAsIsData [2:13,4],ImportedAsIsData [2:13,5],ImportedAsIsData [2:13,6],ImportedAsIsData [2:13,7])
+EfakAsIsVector <- c(ImportedAsIsData [16:27,2],ImportedAsIsData [16:27,3],ImportedAsIsData [16:27,4],ImportedAsIsData [16:27,5],ImportedAsIsData [16:27,6],ImportedAsIsData [16:27,7])
+WugeAsIsVector <- c(ImportedAsIsData [30:41,2],ImportedAsIsData [30:41,3],ImportedAsIsData [30:41,4],ImportedAsIsData [30:41,5],ImportedAsIsData [30:41,6],ImportedAsIsData [30:41,7])
+TotalEtelAsIsVector <- c(ImportedAsIsData [44:55,2],ImportedAsIsData [44:55,3],ImportedAsIsData [44:55,4],ImportedAsIsData [44:55,5],ImportedAsIsData [44:55,6],ImportedAsIsData [44:55,7])
+BlueEtelAsIsVector <- c(ImportedAsIsData [58:69,2],ImportedAsIsData [58:69,3],ImportedAsIsData [58:69,4],ImportedAsIsData [58:69,5],ImportedAsIsData [58:69,6],ImportedAsIsData [58:69,7])
+RedEtelAsIsVector <- c(ImportedAsIsData [72:83,2],ImportedAsIsData [72:83,3],ImportedAsIsData [72:83,4],ImportedAsIsData [72:83,5],ImportedAsIsData [72:83,6],ImportedAsIsData [72:83,7])
+YearAsIsVector <- c(ImportedAsIsData [86,2],ImportedAsIsData [86,3],ImportedAsIsData [86,4],ImportedAsIsData [86,5],ImportedAsIsData [86,6],ImportedAsIsData [86,7])
+TotalAsIsVector_2014 <- c(ImportedAsIsData[2:13,8])
+
+PlanVector <- c(ImportedPlanData[2:13,2],ImportedPlanData[2:13,3],ImportedPlanData[2:13,4],ImportedPlanData[2:13,5],ImportedPlanData[2:13,6],ImportedPlanData[2:13,7])
+EfakPlanVector <- c(ImportedPlanData[16:27,2],ImportedPlanData[16:27,3],ImportedPlanData[16:27,4],ImportedPlanData[16:27,5],ImportedPlanData[16:27,6],ImportedPlanData[16:27,7])
+WugePlanVector <- c(ImportedPlanData[30:41,2],ImportedPlanData[30:41,3],ImportedPlanData[30:41,4],ImportedPlanData[30:41,5],ImportedPlanData[30:41,6],ImportedPlanData[30:41,7])
+TotalEtelPlanVector <- c(ImportedPlanData[44:55,2],ImportedPlanData[44:55,3],ImportedPlanData[44:55,4],ImportedPlanData[44:55,5],ImportedPlanData[44:55,6],ImportedPlanData[44:55,7])
+BlueEtelPlanVector <- c(ImportedPlanData[58:69,2],ImportedPlanData[58:69,3],ImportedPlanData[58:69,4],ImportedPlanData[58:69,5],ImportedPlanData[58:69,6],ImportedPlanData[58:69,7])
+RedEtelPlanVector <- c(ImportedPlanData[72:83,2],ImportedPlanData[72:83,3],ImportedPlanData[72:83,4],ImportedPlanData[72:83,5],ImportedPlanData[72:83,6],ImportedPlanData[72:83,7])
+YearPlanVector <- c(ImportedPlanData[86,2],ImportedPlanData[86,3],ImportedPlanData[86,4],ImportedPlanData[86,5],ImportedPlanData[86,6],ImportedPlanData[86,7])
+PlanVector_2014 <- c(ImportedPlanData[2:13,8])
+TotalAsIs <- ts(TotalAsIsVector, start = c(2008,1), end=c(2013,12), frequency = 12)
+EfakAsIs <- ts(EfakAsIsVector , start=c(2008,1), end=c(2013,12), frequency=12)
+```
+
+### The time series can be analysed using the stl function in order to seperate
+### the trend, seasonality and remainder .
+```{r stl, echo=FALSE}
+EfakAsIs_stl <- stl(EfakAsIs , s.window=5)
+plot(EfakAsIs_stl, col="black", main="EfakAsIs_stl")
+
+```
+
+###The following indicators show good correlation
+```{r BetterIndicators}
+# Monthly Change in Export Price Index (CEPI)
+CEPIVector <- c(ImportedIndicators[2:13,2],ImportedIndicators[2:13,3],ImportedIndicators[2:13,4],ImportedIndicators[2:13,5],ImportedIndicators[2:13,6],ImportedIndicators[2:13,7])
+CEPI <- ts(CEPIVector , start=c(2008,1), end=c(2013,12), frequency=12)
+plot(CEPI, main="CEPI")
+
+cor(EfakAsIs , CEPI)
+#Very good correlation with CEPI index continuous upward trend.
+
+# Yearly exports from Urbano
+UrbanoExportsVector <- c(ImportedIndicators[72:83,2],ImportedIndicators[72:83,3],ImportedIndicators[72:83,4],ImportedIndicators[72:83,5],ImportedIndicators[72:83,6],ImportedIndicators[72:83,7])
+UrbanoExports <- ts(UrbanoExportsVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(UrbanoExports, main="UrbanoExports")
+
+cor(EfakAsIs , UrbanoExports)
+#Very good correlation because of the upward trend probably
+
+# Monthly Average Export Price Index for Chulwalar
+AEPIVector <- c(ImportedIndicators[100:111,2],ImportedIndicators[100:111,3],ImportedIndicators[100:111,4],ImportedIndicators[100:111,5],ImportedIndicators[100:111,6],ImportedIndicators[100:111,7])
+AEPI <- ts(AEPIVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(AEPI, main="AEPI")
+
+cor(EfakAsIs , AEPI)
+#Very good correlation with AEPI particularly towards the last two thirds of the graph.
+
+# Yearly number of Globalisation Party members in Chulwalar
+GlobalisationPartyMembersVector <- c(ImportedIndicators[86:97,2],ImportedIndicators[86:97,3],ImportedIndicators[86:97,4],ImportedIndicators[86:97,5],ImportedIndicators[86:97,6],ImportedIndicators[86:97,7])
+GlobalisationPartyMembers <- ts(GlobalisationPartyMembersVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(GlobalisationPartyMembers, main="GlobalisationPartyMembers")
+
+cor(EfakAsIs , GlobalisationPartyMembers)
+#The trend makes the correlation pretty good, it shows a bit of a flat trend towards 
+#the last three years of the graph
+
+# Monthly Satisfaction Index (SI) external index 
+SIExternVector <- c(ImportedIndicators[58:69,2],ImportedIndicators[58:69,3],ImportedIndicators[58:69,4],ImportedIndicators[58:69,5],ImportedIndicators[58:69,6],ImportedIndicators[58:69,7])
+SIExtern <- ts(SIExternVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(SIExtern, main="SIExtern")
+
+cor(EfakAsIs , SIExtern) 
+#The correlation is good which might be explained by the upward trend
+```
+
+###The following indicators didn't do as well as the previous ones
+```{r NotVeryGoodIndicators}
+#######################################################################################
+# The External Satisfaction Index indicator is to be offset by one month, to see if the 
+# index change makes itself first noticeable on exports in the following months.
+#######################################################################################
+SIExternOffsetByOneMonthVector <- c(ImportedIndicators[59:69,2],ImportedIndicators[58:69,3],ImportedIndicators[58:69,4],ImportedIndicators[58:69,5],ImportedIndicators[58:69,6],ImportedIndicators[58:69,7])
+SIExternOffsetByOneMonth <- ts(SIExternOffsetByOneMonthVector, start=c(2008,1), end=c(2013,11), frequency=12)
+plot(SIExternOffsetByOneMonth, main="SIExternOffsetByOneMonth")
+
+# Delete December 2013 from the ts 
+EfakAsIsWithoutDec12013 <- ts(EfakAsIsVector , start=c(2008,1), end=c(2013,11), frequency=12)
+
+cor(EfakAsIsWithoutDec12013, SIExternOffsetByOneMonth)
+#Still not very good
+
+# Chulwalar Index (Total value of all companies in Chulwalar)
+ChulwalarIndexVector <- c(ImportedIndicators[128:139,2],ImportedIndicators[128:139,3],ImportedIndicators[128:139,4],ImportedIndicators[128:139,5],ImportedIndicators[128:139,6],ImportedIndicators[128:139,7])
+ChulwalarIndex <- ts(ChulwalarIndexVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(ChulwalarIndex, main="ChulwalarIndex")
+
+cor(EfakAsIs , ChulwalarIndex) 
+#The correlation here is not too bad
+
+# Monthly Producer Price Index (PPI) for Etel in Chulwalar
+PPIEtelVector <- c(ImportedIndicators[114:125,2],ImportedIndicators[114:125,3],ImportedIndicators[114:125,4],ImportedIndicators[114:125,5],ImportedIndicators[114:125,6],ImportedIndicators[114:125,7])
+PPIEtel <- ts(PPIEtelVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(PPIEtel, main="PPIEtel")
+
+cor(EfakAsIs , PPIEtel) 
+#Not a very good correlation it even seems to flatten in the last couple of years.
+
+# Proposed spending for Independence day presents
+IndependenceDayPresentsVector <- c(ImportedIndicators[156:167,2],ImportedIndicators[156:167,3],ImportedIndicators[156:167,4],ImportedIndicators[156:167,5],ImportedIndicators[156:167,6],ImportedIndicators[156:167,7])
+IndependenceDayPresents <- ts(IndependenceDayPresentsVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(IndependenceDayPresents, main="IndependenceDayPresents")
+
+cor(EfakAsIs , IndependenceDayPresents) 
+#Not a good correlation with independece days presents, which seems to be odd.
+
+# Monthly Satisfaction Index (SI) government based data
+SIGovVector <- c(ImportedIndicators[16:27,2],ImportedIndicators[16:27,3],ImportedIndicators[16:27,4],ImportedIndicators[16:27,5],ImportedIndicators[16:27,6],ImportedIndicators[16:27,7])
+SIGov <- ts(SIGovVector , start=c(2008,1), end=c(2013,12), frequency=12)
+plot(SIGov, main="SIGov")
+
+cor(EfakAsIs , SIGov)
+#Bad correlation with Efak exports, they even have different trends, perhaps
+#just the last year might correlate better but it might be just a smaller 
+#cycle before it returns to what it showed previously
+
+# Monthly Inflation rate in Chulwalar 
+InflationVector <- c(ImportedIndicators[142:153,2],ImportedIndicators[142:153,3],ImportedIndicators[142:153,4],ImportedIndicators[142:153,5],ImportedIndicators[142:153,6],ImportedIndicators[142:153,7])
+Inflation <- ts(InflationVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(Inflation, main="Inflation")
+
+cor(EfakAsIs , Inflation) 
+#Not a good correlation with the inflation index
+
+# orignial National Holidays indicator.    
+InfluenceNationalHolidaysVector <- c(ImportedIndicators[184:195,2],ImportedIndicators[184:195,3],ImportedIndicators[184:195,4],ImportedIndicators[184:195,5],ImportedIndicators[184:195,6],ImportedIndicators[184:195,7])
+InfluenceNationalHolidays <- ts(InfluenceNationalHolidaysVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(InfluenceNationalHolidays, main="InfluenceNationalHolidays")
+
+cor(EfakAsIs , InfluenceNationalHolidays) 
+#Bad correlation with this index as well
+
+# National Holidays
+NationalHolidaysVector <- c(ImportedIndicators[170:181,2],ImportedIndicators[170:181,3],ImportedIndicators[170:181,4],ImportedIndicators[170:181,5],ImportedIndicators[170:181,6],ImportedIndicators[170:181,7])
+NationalHolidays <- ts(NationalHolidaysVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(NationalHolidays, main="NationalHolidays")
+
+cor(EfakAsIs , NationalHolidays) 
+#Not very good correlation with National holidays, whish seems odd as Efak flowers should be a 
+#preferred present during the festivities.
+
+# Average monthly temperatures in Chulwalar
+TemperatureVector <- c(ImportedIndicators[30:41,2],ImportedIndicators[30:41,3],ImportedIndicators[30:41,4],ImportedIndicators[30:41,5],ImportedIndicators[30:41,6],ImportedIndicators[30:41,7])
+Temperature <- ts(TemperatureVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(Temperature, main="Temperature")
+
+cor(EfakAsIs , Temperature) 
+#Very bad correlation, with higher temperatures in the middle of the year, as chulwalar is 
+#in the northern hemisphere.
+
+# Monthly births in Chulwalar 
+BirthsVector <- c(ImportedIndicators[44:55,2],ImportedIndicators[44:55,3],ImportedIndicators[44:55,4],ImportedIndicators[44:55,5],ImportedIndicators[44:55,6],ImportedIndicators[44:55,7])
+Births <- ts(BirthsVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(Births, main="Births")
+
+cor(EfakAsIs , Births) 
+#Births are seasonal as well with higher numbers of them during the summer months. 
+#Correlation with Efak exports is not good
+```
+
+```{r Vectors, echo=FALSE}
+# Seperate the indicator data for 2013 and 2014 in order to use these in the forecasts. First as a vector and then as a time series.
+
+CEPIVector_2013 <- c(ImportedIndicators[2:13,7])
+CEPIVector_2014 <- c(ImportedIndicators[2:13,8])
+SIGovVector_2013 <- c(ImportedIndicators[16:27,7])
+SIGovVector_2014 <- c(ImportedIndicators[16:27,8])
+TemperatureVector_2013 <- c(ImportedIndicators[30:41,7])
+TemperatureVector_2014 <- c(ImportedIndicators[30:41,8])
+BirthsVector_2013 <- c(ImportedIndicators[44:55,7])
+BirthsVector_2014 <- c(ImportedIndicators[44:55,8])
+SIExternVector_2013 <- c(ImportedIndicators[58:69,7])
+SIExternVector_2014 <- c(ImportedIndicators[58:69,8])
+UrbanoExportsVector_2013 <- c(ImportedIndicators[72:83,7])
+UrbanoExportsVector_2014 <- c(ImportedIndicators[72:83,8])
+GlobalisationPartyMembersVector_2013 <- c(ImportedIndicators[86:97,7])
+GlobalisationPartyMembersVector_2014 <- c(ImportedIndicators[86:97,8])
+AEPIVector_2013 <- c(ImportedIndicators[100:111,7])
+AEPIVector_2014 <- c(ImportedIndicators[100:111,8])
+PPIEtelVector_2013 <- c(ImportedIndicators[114:125,7])
+PPIEtelVector_2014 <- c(ImportedIndicators[114:125,8])
+NationalHolidaysVector_2013 <-c(ImportedIndicators[170:181,7])
+NationalHolidaysVector_2014 <-c(ImportedIndicators[170:181,8])
+ChulwalarIndexVector_2013 <- c(ImportedIndicators[128:139,7])
+ChulwalarIndexVector_2014 <- c(ImportedIndicators[128:139,8])
+InflationVector_2013 <- c(ImportedIndicators[142:153,7])
+InflationVector_2014 <- c(ImportedIndicators[142:153,8])
+InfluenceNationalHolidaysVector_2013 <-c(ImportedIndicators[184:195,7])
+InfluenceNationalHolidaysVector_2014 <-c(ImportedIndicators[184:195,8])
+IndependenceDayPresents_2013 <- c(ImportedIndicators[156:167,7])
+IndependenceDayPresents_2014 <- c(ImportedIndicators[156:167,8])
+
+
+CEPI_2013 <- ts(CEPIVector_2013 , start=c(2013,1), end=c(2013,12), frequency=12)
+CEPI_2014 <- ts(CEPIVector_2014 , start=c(2013,1), end=c(2013,12), frequency=12)
+SIGov_2013 <- ts(SIGovVector_2013 , start=c(2013,1), end=c(2013,12), frequency=12)
+SIGov_2014 <- ts(SIGovVector_2014 , start=c(2013,1), end=c(2013,12), frequency=12)
+Temperature_2013 <- ts(TemperatureVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+Temperature_2014 <- ts(TemperatureVector_2014, start=c(2013,1), end=c(2013,12), frequency=12)
+Births_2013 <- ts(BirthsVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+Births_2014 <- ts(BirthsVector_2014, start=c(2013,1), end=c(2013,12), frequency=12)
+SIExtern_2013 <- ts(SIExternVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+SIExtern_2014 <- ts(SIExternVector_2014, start=c(2013,1), end=c(2013,12), frequency=12)
+UrbanoExports_2013 <- ts(UrbanoExportsVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+UrbanoExports_2014 <- ts(UrbanoExportsVector_2014, start=c(2013,1), end=c(2013,12), frequency=12)
+GlobalisationPartyMembers_2013 <- ts(GlobalisationPartyMembersVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+GlobalisationPartyMembers_2014 <- ts(GlobalisationPartyMembersVector_2014, start=c(2013,1), end=c(2013,12), frequency=12)
+AEPI_2013 <- ts(AEPIVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+AEPI_2014 <- ts(AEPIVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+PPIEtel_2013 <- ts(PPIEtelVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+PPIEtel_2014 <- ts(PPIEtelVector_2014, start=c(2013,1), end=c(2013,12), frequency=12)
+NationalHolidays_2013 <- ts(NationalHolidaysVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+NationalHolidays_2014 <- ts(NationalHolidaysVector_2014, start=c(2014,1), end=c(2014,12), frequency=12)
+ChulwalarIndex_2013 <- ts(ChulwalarIndexVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+ChulwalarIndex_2014 <- ts(ChulwalarIndexVector_2014, start=c(2013,1), end=c(2013,12), frequency=12)
+Inflation_2013 <- ts(InflationVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+Inflation_2014 <- ts(InflationVector_2014, start=c(2013,1), end=c(2013,12), frequency=12)
+InfluenceNationalHolidays_2013 <- ts(InfluenceNationalHolidaysVector_2013, start=c(2013,1), end=c(2013,12), frequency=12)
+InfluenceNationalHolidays_2014 <- ts(InfluenceNationalHolidaysVector_2014, start=c(2013,1), end=c(2013,12), frequency=12)
+
+```
+###Since we have data for 2014 on the Total As Is column, we wanted to find the correlation
+```{r TotalAsIsVector}
+plot(TotalAsIsVector, main="TotalAsIsVector")
+#Since we have As Is data all the way to 2014, I wanted to check if correlation was good.
+cor(EfakAsIsVector, TotalAsIsVector)  
+```
+
+###UrbanoExportsVector, GlobalisationPartyMembersVector, ChulwalarIndexVector, these are the ones I found in the correlation section, the three had very good correlation to Efak and had data all the way to 2014, that is why I prefer these.
+```{r tslmIndicators}
+
+####Urbano
+usingurbano <- tslm(EfakAsIs ~ trend + season + UrbanoExports)
+tslmUrbano <- forecast(usingurbano, newdata = UrbanoExports_2014, h=12)
+#Start capturing the quality
+quality <- accuracy(tslmUrbano)
+Model <- "TrendSeasonUrbano"
+quality <- cbind(Model, quality)
+names(quality) <- c("ME","RMSE","MAE","MPE","MAPE","MASE","ACF1","MODEL")
+
+####Globalization
+usingGlobalisationPartyMembers <- tslm(EfakAsIs ~ trend + season + GlobalisationPartyMembers)
+tslmGlobalization <- forecast(usingGlobalisationPartyMembers, newdata = GlobalisationPartyMembers_2014, h=12)
+quality <- rbind(quality, c("TrendSeasonGlobalParty", accuracy(tslmGlobalization)))
+
+####ChulwalarIndex
+usingChulwalarIndex <- tslm(EfakAsIs ~ trend + season + ChulwalarIndex)
+tslmChulwalarIdx <- forecast(usingChulwalarIndex, newdata = ChulwalarIndex_2014, h=12)
+quality <- rbind(quality, c("TrendSeasonChulwalarIdx", accuracy(tslmChulwalarIdx)))
+
+#Indicators that have data for 2014
+indicators2014 <- tslm(EfakAsIs ~ trend + season + UrbanoExports + GlobalisationPartyMembers + ChulwalarIndex + Inflation + InfluenceNationalHolidays + IndependenceDayPresents + NationalHolidays)
+tslmAll2014 <- forecast(indicators2014, newdata =data.frame(UrbanoExports=UrbanoExports_2014, GlobalisationPartyMembers=GlobalisationPartyMembers_2014,ChulwalarIndex=ChulwalarIndex_2014,Inflation=Inflation_2014,InfluenceNationalHolidays=InfluenceNationalHolidays_2014,IndependenceDayPresents=IndependenceDayPresents_2014,NationalHolidays=NationalHolidays_2014) , h=12)
+quality <- rbind(quality, c("TrendSeasonAllIndicators2014", accuracy(tslmAll2014)))
+
+
+#No indicators just seasonality and trend
+NoIndicators <- tslm(EfakAsIs ~ trend + season)
+tslmSeasonTrend <- forecast(NoIndicators,h=12)
+quality <- rbind(quality, c("tslmSeasonTrend", accuracy(tslmSeasonTrend)))
+```
+
+###Exponential smoothing forecast, Ses forcast model
+```{r Ses}
+
+Model_ses <- ses(EfakAsIs, h=12)
+quality <- rbind(quality, c("Model_ses", accuracy(Model_ses)))
+```
+
+###Exponential smoothing forecast, Testing the Holt forecast models
+```{r holt}
+Model_holt_1 <- holt(EfakAsIs,h=12)
+quality <- rbind(quality, c("Model_holt_1", accuracy(Model_holt_1)))
+
+Model_holt_2<- holt(EfakAsIs, exponential=TRUE,h=12)
+quality <- rbind(quality, c("Model_holt_2", accuracy(Model_holt_2)))
+
+# With damp = TRUE
+Model_holt_3 <- holt(EfakAsIs, damped=TRUE,h=12)
+quality <- rbind(quality, c("Model_holt_3", accuracy(Model_holt_3)))
+
+#Damp and Explotential
+Model_holt_4 <- holt(EfakAsIs, exponential=TRUE, damped=TRUE,h=12)
+quality <- rbind(quality, c("Model_holt_4", accuracy(Model_holt_4)))
+
+```
+
+###Exponential smoothing forecast, Holt Winters model
+```{r hw}
+#Additive
+Model_hw_1 <- hw(EfakAsIs ,seasonal="additive",h=12)
+quality <- rbind(quality, c("Model_hw_1", accuracy(Model_hw_1)))
+
+#Multiplicative
+Model_hw_2 <- hw(EfakAsIs ,seasonal="multiplicative",h=12)
+quality <- rbind(quality, c("Model_hw_2", accuracy(Model_hw_2)))
+```
+###Exponential smoothing state space model
+```{r ets}
+#ets model
+Model_ets <- ets(EfakAsIs, model="ZZZ", damped=NULL, alpha=NULL, beta=NULL, gamma=NULL, phi=NULL, additive.only=FALSE, lambda=NULL, lower=c(rep(0.0001,3), 0.8), upper=c(rep(0.9999,3),0.98), opt.crit=c("lik","amse","mse","sigma","mae"), nmse=3, bounds=c("both","usual","admissible"), ic=c("aicc","aic","bic"), restrict=TRUE)
+
+Model_ets_forecast <- forecast(Model_ets,h=12)
+quality <- rbind(quality, c("Model_ets_forecast", accuracy(Model_ets_forecast)))
+ 
+```
+
+###Fit ARIMA model to univariate time series
+```{r Arima}
+Model_ARIMA_1  <- Arima(EfakAsIs, order=c(0,1,0))
+quality <- rbind(quality, c("Model_ARIMA_1", accuracy(forecast(Model_ARIMA_1))))
+
+Model_ARIMA_2 <- Arima(EfakAsIs, order=c(1,1,0))
+quality <- rbind(quality, c("Model_ARIMA_2", accuracy(forecast(Model_ARIMA_2))))
+
+
+Model_ARIMA_3 <- Arima(EfakAsIs, order=c(1,1,1))
+quality <- rbind(quality, c("Model_ARIMA_3", accuracy(forecast(Model_ARIMA_3))))
+
+Model_ARIMA_4 <- Arima(EfakAsIs, order=c(2,1,1))
+quality <- rbind(quality, c("Model_ARIMA_4", accuracy(forecast(Model_ARIMA_4))))
+
+Model_ARIMA_5 <- Arima(EfakAsIs, order=c(2,1,2))
+quality <- rbind(quality, c("Model_ARIMA_5", accuracy(forecast(Model_ARIMA_5))))
+
+Model_ARIMA_6 <- Arima(EfakAsIs, order=c(3,1,2))
+quality <- rbind(quality, c("Model_ARIMA_6", accuracy(forecast(Model_ARIMA_6))))
+
+Model_ARIMA_7 <- Arima(EfakAsIs, order=c(3,1,3))
+quality <- rbind(quality, c("Model_ARIMA_7", accuracy(forecast(Model_ARIMA_7))))
+
+Model_ARIMA_8 <- Arima(EfakAsIs, order=c(3,1,1))
+quality <- rbind(quality, c("Model_ARIMA_8", accuracy(forecast(Model_ARIMA_8))))
+
+Model_ARIMA_9 <- Arima(EfakAsIs, order=c(3,1,2))
+quality <- rbind(quality, c("Model_ARIMA_9", accuracy(forecast(Model_ARIMA_9))))
+
+Model_ARIMA_10 <- Arima(EfakAsIs, order=c(1,1,3))
+quality <- rbind(quality, c("Model_ARIMA_10", accuracy(forecast(Model_ARIMA_10))))
+
+Model_ARIMA_11 <- Arima(EfakAsIs, order=c(2,1,3))
+quality <- rbind(quality, c("Model_ARIMA_11", accuracy(forecast(Model_ARIMA_11))))
+
+Model_ARIMA_12 <- Arima(EfakAsIs, order=c(2,2,3))
+quality <- rbind(quality, c("Model_ARIMA_12", accuracy(forecast(Model_ARIMA_12))))
+
+Model_ARIMA_13 <- Arima(EfakAsIs, order=c(2,3,2))
+quality <- rbind(quality, c("Model_ARIMA_13", accuracy(forecast(Model_ARIMA_13))))
+
+# Seasonal ARIMA modelling   				                                    
+
+Model_Seasonal_ARIMA_0 <- Arima(EfakAsIs, order=c(0,0,0), seasonal=c(1,0,0))
+quality <- rbind(quality, c("Model_Seasonal_ARIMA_0", accuracy(forecast(Model_Seasonal_ARIMA_0))))
+
+
+Model_Seasonal_ARIMA_1 <- Arima(EfakAsIs, order=c(0,1,1), seasonal=c(0,1,1))
+quality <- rbind(quality, c("Model_Seasonal_ARIMA_1", accuracy(forecast(Model_Seasonal_ARIMA_1))))
+
+Model_Seasonal_ARIMA_2 <- Arima(EfakAsIs, order=c(2,3,2), seasonal=c(1,1,1))
+quality <- rbind(quality, c("Model_Seasonal_ARIMA_2", accuracy(forecast(Model_Seasonal_ARIMA_2))))
+
+# Good results when using drift.
+Model_Seasonal_ARIMA_3 <- Arima(EfakAsIs, order=c(1,0,1), seasonal=c(1,1,1),include.drift=TRUE)
+quality <- rbind(quality, c("Model_Seasonal_ARIMA_3", accuracy(forecast(Model_Seasonal_ARIMA_3))))
+
+Model_Seasonal_ARIMA_4 <- Arima(EfakAsIs, order=c(2,3,2), seasonal=c(1,3,2))
+quality <- rbind(quality, c("Model_Seasonal_ARIMA_4", accuracy(forecast(Model_Seasonal_ARIMA_4))))
+
+Model_Seasonal_ARIMA_5 <- Arima(EfakAsIs, order=c(2,3,2), seasonal=c(1,4,2))
+quality <- rbind(quality, c("Model_Seasonal_ARIMA_5", accuracy(forecast(Model_Seasonal_ARIMA_5))))
+
+
+Model_auto.arima <- auto.arima(EfakAsIs)
+quality <- rbind(quality, c("Model_auto.arima", accuracy(forecast(Model_auto.arima))))
+
+```
+
+###From this, and showing the three values RMSE, MAE and MAPE I have that in the top 6 models sorted three ways we have: TrendSeasonAllIndicators2014, RrendSeasonUrbano, Model_Seasonal_ARIMA_3, Model_Seasonal_ARIMA_1 looks like a well balanced model, Model_Seasonal_ARIMA_4 looks like a well balanced model
+```{r MatrixQuality}
+qltyColumns <- quality[,c(1,3,4,6)]
+
+head(qltyColumns[order(as.numeric(qltyColumns[,2])),])
+head(qltyColumns[order(as.numeric(qltyColumns[,3])),])
+head(qltyColumns[order(as.numeric(qltyColumns[,4])),])
+```
+
+###TrendSeasonAllIndicators2014
+```{r TrendSeasonAllIndicators}
+summary(tslmAll2014)
+```
+
+###TrendSeasonUrbano
+```{r TrendSeasonUrbano}
+summary(tslmUrbano)
+```
+
+###ModelSeasonalARIMA3
+```{r Model_Seasonal_ARIMA_3}
+summary(Model_Seasonal_ARIMA_3)
+```
+
+###ModelSeasonalARIMA1
+```{r Model_Seasonal_ARIMA_1}
+summary(Model_Seasonal_ARIMA_1)
+```
+
+###ModelHw1
+```{r Model_hw_1}
+summary(Model_hw_1)
+
+```
+
+##Show the modes in the following graphs
+
+###We first show the existing data and we compare it to the forecast models.
+```{r GraphBestModelsWithAsIs, echo=FALSE}
+plot(EfakAsIs, type="o", col = "Black")
+lines(fitted(tslmAll2014), lty=1,col="red")
+lines(fitted(tslmUrbano), lty=1,col="purple")
+lines(fitted(Model_Seasonal_ARIMA_3), lty=1,col="blue")
+lines(fitted(Model_Seasonal_ARIMA_1), lty=1,col="orange")
+lines(fitted(Model_hw_1), lty=1,col="yellow")
+legend("topleft",lty=1, pch=1, col=c(1,"red","purple","blue","orange","yellow"), c("data","tslmAll2014","tslmUrbano","ARIMA_3", "ARIMA_1","hw"))
+```
+
+###We then show the forcasted graph.
+```{r GraphBestModelsForecast, echo=FALSE}
+plot(tslmAll2014, type="o", col = "Black", plot.conf=FALSE, fcol="white")
+lines(tslmAll2014$mean, col="purple", type="o")
+lines(tslmUrbano$mean, col="blue", type="o")
+lines(forecast(Model_Seasonal_ARIMA_3,h=12)$mean, col="red", type="o")
+lines(forecast(Model_Seasonal_ARIMA_1,h=12)$mean, col="green", type="o")
+lines(Model_hw_1$mean, col="yellow", type="o")
+legend("topleft",lty=1, pch=1, col=c(1,"red","purple","blue","orange","yellow"), c("data","tslmAll2014","tslmUrbano","ARIMA_3", "ARIMA_1","hw"))
+```
+
+###Conclusion:
+####After reviewing all the data, we conclude that the best model is the very simple TSLM using Urbano exports as the Indicator, but really any one of the models selected seem to be very good forecasting tools for Efak exports in 2014. The only possible exception would be the one using every Indicator.
+
+####The best model by the numbers (RMSE, MAPE, MAE) is the model with using every indicator that has information for 2014 but looking at the graph it seem to be over optimistic, for that reason we decided to not use this model, the other three models look very similar to the one we chose but by the *Principle or parsimony* we decide on the model using *Urbano Export indicator using trend and seasonality* and nothing else, as this one is the simplest and with the least number of indicators and predictions needed.
+
+###Forecast, following we show the actual forcasted values from the selected model.
+```{r finalvalues}
+tslmUrbano
+```
